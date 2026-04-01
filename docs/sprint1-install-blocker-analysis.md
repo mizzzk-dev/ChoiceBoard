@@ -1,0 +1,75 @@
+# Sprint 1 install blocker analysis (npm 403)
+
+## Summary
+`npm install` fails with `E403` before dependency resolution completes.
+
+## Reproduction
+1. Run `npm install` in repository root.
+2. `E403` is returned for public packages such as `@types/node`, `next`, `react`.
+
+Observed error:
+
+```text
+npm ERR! 403 Forbidden - GET https://registry.npmjs.org/@types%2fnode
+```
+
+## Investigation results
+The root cause is environment-level outbound proxy policy, not package definitions.
+
+- npm registry config is the public default: `https://registry.npmjs.org/`.
+- Proxy environment variables are injected (`HTTP_PROXY`, `HTTPS_PROXY`, `npm_config_https_proxy`, etc.).
+- Direct probe with proxy returns envoy `403`:
+
+```bash
+curl -I https://registry.npmjs.org/@types%2Fnode
+# HTTP/1.1 403 Forbidden
+# server: envoy
+```
+
+- Direct probe without proxy cannot reach internet from this runtime:
+
+```bash
+env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy \
+  curl -I https://registry.npmjs.org/@types%2Fnode
+# curl: (7) Couldn't connect to server
+```
+
+## Conclusion
+In this runtime, package installation is blocked by network policy:
+
+- **With proxy:** npm registry is denied (`403 Forbidden`).
+- **Without proxy:** external connection is unavailable.
+
+Therefore Sprint 1 verification commands (`build` / `lint` / `test`) are blocked until registry egress policy is fixed.
+
+## Workarounds
+Use one of the following environment-level mitigations.
+
+1. Allowlist npm registry endpoints in outbound proxy policy.
+   - `registry.npmjs.org` (required)
+   - Additional CDN endpoints used by package tarballs if your proxy requires explicit allowlists
+2. Or provide an approved internal npm mirror and set:
+
+```bash
+npm config set registry <internal_registry_url>
+npm install
+```
+
+3. If the execution environment can access internet directly, run install with proxy vars unset:
+
+```bash
+env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy \
+  -u npm_config_http_proxy -u npm_config_https_proxy \
+  npm install
+```
+
+## Next step after network fix
+After dependency install is possible, run:
+
+```bash
+npm run build
+npm run lint
+npm test
+```
+
+Then complete browser validation (`/` -> compare -> `/result/{jobId}`) and finalize Sprint 1.
