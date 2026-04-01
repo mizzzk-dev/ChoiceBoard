@@ -13,6 +13,12 @@ Observed error:
 npm ERR! 403 Forbidden - GET https://registry.npmjs.org/@types%2fnode
 ```
 
+Current run (2026-04-01) also shows:
+
+```text
+npm warn Unknown env config "http-proxy".
+```
+
 ## Investigation results
 The root cause is environment-level outbound proxy policy, not package definitions.
 
@@ -22,6 +28,14 @@ The root cause is environment-level outbound proxy policy, not package definitio
 
 ```bash
 curl -I https://registry.npmjs.org/@types%2Fnode
+# HTTP/1.1 403 Forbidden
+# server: envoy
+```
+
+- Alternative public registries are also denied through the same proxy tunnel:
+
+```bash
+curl -I https://registry.yarnpkg.com/@types%2Fnode
 # HTTP/1.1 403 Forbidden
 # server: envoy
 ```
@@ -73,3 +87,12 @@ npm test
 ```
 
 Then complete browser validation (`/` -> compare -> `/result/{jobId}`) and finalize Sprint 1.
+
+## Unblock requirements (environment-owned)
+To complete Sprint 1 verification in this repository, the runtime must satisfy **one** of:
+
+1. Proxy policy allowlists npm registry/mirror endpoints used by npm.
+2. An internal npm mirror endpoint is provided and reachable from this runtime.
+3. Direct internet egress is enabled for Node/npm traffic.
+
+Without one of the above, `npm install` cannot succeed, and downstream checks (`build` / `lint` / `test` / browser E2E) remain blocked.
