@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum JobStatus {
+  processing
+  completed
+  failed
+}
+
+enum SourceStatus {
+  ok
+  fetch_error
+  parse_error
+}
+
+enum Currency {
+  USD
+  JPY
+  Unknown
+}
+
+enum BillingCycle {
+  monthly
+  annual
+  unknown
+}
+
+enum PriceState {
+  free
+  trial
+  contact_sales
+  unknown
+}
+
+enum Confidence {
+  high
+  medium
+  low
+}
+
+model CompareJob {
+  id        String       @id @default(cuid())
+  status    JobStatus
+  createdAt DateTime     @default(now())
+  inputUrls String[]
+  cautions  String[]
+  sources   CompareSource[]
+
+  @@index([createdAt])
+}
+
+model CompareSource {
+  id            String       @id @default(cuid())
+  jobId         String
+  url           String
+  normalizedUrl String
+  status        SourceStatus
+  caution       String?
+  htmlHash      String?
+  plans         ComparePlan[]
+  job           CompareJob    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+}
+
+model ComparePlan {
+  id           String      @id @default(cuid())
+  sourceId      String
+  serviceName   String
+  planName      String
+  priceAmount   Float?
+  currency      Currency
+  billingCycle  BillingCycle
+  priceState    PriceState
+  confidence    Confidence
+  note          String
+  source        CompareSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId])
+}
