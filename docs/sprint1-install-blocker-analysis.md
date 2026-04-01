@@ -10,6 +10,7 @@
 Observed error:
 
 ```text
+npm ERR! code E403
 npm ERR! 403 Forbidden - GET https://registry.npmjs.org/@types%2fnode
 ```
 
@@ -35,6 +36,13 @@ curl -I https://registry.npmjs.org/@types%2Fnode
 - Alternative public registries are also denied through the same proxy tunnel:
 
 ```bash
+- Other public npm-compatible registries are also blocked via the same proxy policy:
+
+```bash
+curl -I https://registry.npmmirror.com/@types%2Fnode
+# HTTP/1.1 403 Forbidden
+# server: envoy
+
 curl -I https://registry.yarnpkg.com/@types%2Fnode
 # HTTP/1.1 403 Forbidden
 # server: envoy
@@ -48,20 +56,39 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy \
 # curl: (7) Couldn't connect to server
 ```
 
+## Verification attempt on April 1, 2026 (UTC)
+The following Sprint 1 verification steps were executed in this runtime:
+
+```bash
+npm install
+npm run build
+npm run lint
+npm test
+```
+
+Results:
+
+- `npm install`: failed with `E403` on npm registry access.
+- `npm run build`: failed because `next` is not installed (`sh: 1: next: not found`).
+- `npm run lint`: failed because `next` is not installed (`sh: 1: next: not found`).
+- `npm test`: failed because `vitest` is not installed (`sh: 1: vitest: not found`).
+
+Because dependency installation is blocked externally, application-level verification and browser E2E (`/` -> compare -> `/result/{jobId}`) cannot be completed in this environment yet.
+
 ## Conclusion
 In this runtime, package installation is blocked by network policy:
 
-- **With proxy:** npm registry is denied (`403 Forbidden`).
+- **With proxy:** npm registries are denied (`403 Forbidden`).
 - **Without proxy:** external connection is unavailable.
 
-Therefore Sprint 1 verification commands (`build` / `lint` / `test`) are blocked until registry egress policy is fixed.
+Therefore Sprint 1 verification commands (`build` / `lint` / `test`) remain blocked until registry egress policy is fixed.
 
 ## Workarounds
 Use one of the following environment-level mitigations.
 
 1. Allowlist npm registry endpoints in outbound proxy policy.
    - `registry.npmjs.org` (required)
-   - Additional CDN endpoints used by package tarballs if your proxy requires explicit allowlists
+   - Additional tarball/CDN endpoints used by npm packages if your proxy requires explicit allowlists
 2. Or provide an approved internal npm mirror and set:
 
 ```bash
